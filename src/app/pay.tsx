@@ -1,5 +1,5 @@
 import PayScreen from '../screens/PayScreen';
 
-export default function Index() {
+export default function Pay() {
   return <PayScreen />;
 }

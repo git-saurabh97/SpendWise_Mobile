@@ -1,7 +1,7 @@
 import {
   View,
   Text,
- StyleSheet,
+  StyleSheet,
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
@@ -28,8 +28,15 @@ export default function HomeScreen() {
       0
     );
 
-  const remaining =
-    monthlyBudget - totalSpent;
+  const budgetUsed =
+    monthlyBudget > 0
+      ? Math.min(
+          (totalSpent /
+            monthlyBudget) *
+            100,
+          100
+        ).toFixed(0)
+      : '0';
 
   const recentTransactions =
     transactions.slice(0, 5);
@@ -73,20 +80,37 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* BALANCE CARD */}
+      {/* HERO CARD */}
 
-      <View style={styles.balanceCard}>
-        <Text style={styles.balanceLabel}>
-          Total Spent
+      <View style={styles.heroCard}>
+        <Text style={styles.heroLabel}>
+          Amount Spent
         </Text>
 
-        <Text style={styles.balanceAmount}>
+        <Text style={styles.heroAmount}>
           ₹ {totalSpent}
         </Text>
 
-        <Text style={styles.balanceSub}>
-          Remaining Budget:
-          ₹ {remaining}
+        <Text style={styles.heroSub}>
+          Monthly Budget:
+          ₹ {monthlyBudget || 0}
+        </Text>
+
+        {/* PROGRESS */}
+
+        <View style={styles.progressBg}>
+          <View
+            style={[
+              styles.progressFill,
+              {
+                width: `${Number(budgetUsed)}%` as any,
+              },
+            ]}
+          />
+        </View>
+
+        <Text style={styles.progressText}>
+          {budgetUsed}% of budget spent
         </Text>
       </View>
 
@@ -101,7 +125,7 @@ export default function HomeScreen() {
         >
           <Ionicons
             name="card"
-            size={26}
+            size={28}
             color="#534AB7"
           />
 
@@ -118,7 +142,7 @@ export default function HomeScreen() {
         >
           <Ionicons
             name="time"
-            size={26}
+            size={28}
             color="#534AB7"
           />
 
@@ -135,7 +159,7 @@ export default function HomeScreen() {
         >
           <Ionicons
             name="pie-chart"
-            size={26}
+            size={28}
             color="#534AB7"
           />
 
@@ -161,12 +185,13 @@ export default function HomeScreen() {
               style={styles.warningText}
             >
               You have used more than
-              80% of your budget.
+              80% of your monthly
+              budget
             </Text>
           </View>
         )}
 
-      {/* RECENT TRANSACTIONS */}
+      {/* RECENT HEADER */}
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>
@@ -184,47 +209,72 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* TRANSACTIONS */}
+
       {recentTransactions.length ===
       0 ? (
         <View style={styles.emptyCard}>
           <Ionicons
-            name="wallet"
-            size={36}
+            name="wallet-outline"
+            size={44}
             color="#AAA"
           />
 
-          <Text style={styles.emptyText}>
-            No transactions yet
+          <Text style={styles.emptyTitle}>
+            No Transactions Yet
+          </Text>
+
+          <Text style={styles.emptySub}>
+            Start tracking your
+            spending now
           </Text>
         </View>
       ) : (
         recentTransactions.map((t) => (
           <TouchableOpacity
             key={t.id}
-            style={styles.transactionCard}
+            style={
+              styles.transactionCard
+            }
             onPress={() =>
               router.push(
                 `/transaction/${t.id}`
               )
             }
           >
-            <View>
-              <Text
+            <View
+              style={styles.leftRow}
+            >
+              <View
                 style={
-                  styles.transactionMerchant
+                  styles.iconCircle
                 }
               >
-                {t.merchant}
-              </Text>
+                <Ionicons
+                  name="wallet"
+                  size={18}
+                  color="#534AB7"
+                />
+              </View>
 
-              <Text
-                style={
-                  styles.transactionMeta
-                }
-              >
-                {t.category ||
-                  'Others'}
-              </Text>
+              <View>
+                <Text
+                  style={
+                    styles.transactionMerchant
+                  }
+                >
+                  {t.merchant}
+                </Text>
+
+                <Text
+                  style={
+                    styles.transactionMeta
+                  }
+                >
+                  {t.category ||
+                    'Others'}
+                </Text>
+              </View>
             </View>
 
             <Text
@@ -278,59 +328,80 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  balanceCard: {
+  heroCard: {
     backgroundColor: '#534AB7',
-    borderRadius: 28,
+    borderRadius: 30,
     padding: 28,
-    marginBottom: 24,
+    marginBottom: 28,
   },
 
-  balanceLabel: {
+  heroLabel: {
     color: '#D8D3FF',
     fontSize: 16,
   },
 
-  balanceAmount: {
+  heroAmount: {
     color: '#FFFFFF',
-    fontSize: 40,
+    fontSize: 42,
     fontWeight: '700',
     marginTop: 10,
   },
 
-  balanceSub: {
+  heroSub: {
     color: '#D8D3FF',
-    marginTop: 10,
+    marginTop: 8,
     fontSize: 15,
+  },
+
+  progressBg: {
+    height: 12,
+    backgroundColor:
+      'rgba(255,255,255,0.2)',
+    borderRadius: 20,
+    marginTop: 18,
+    overflow: 'hidden',
+  },
+
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+  },
+
+  progressText: {
+    color: '#E4DEFF',
+    marginTop: 10,
+    fontWeight: '600',
   },
 
   actionsRow: {
     flexDirection: 'row',
     justifyContent:
       'space-between',
-    marginBottom: 24,
+    marginBottom: 28,
   },
 
   actionCard: {
     width: '31%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 22,
+    borderRadius: 24,
     paddingVertical: 22,
     alignItems: 'center',
   },
 
   actionText: {
-    marginTop: 10,
-    fontWeight: '600',
+    marginTop: 12,
+    fontWeight: '700',
     color: '#2C2C2A',
   },
 
   warningCard: {
     backgroundColor: '#FFF4E5',
-    borderRadius: 18,
+    borderRadius: 20,
     padding: 18,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 26,
   },
 
   warningText: {
@@ -349,19 +420,19 @@ const styles = StyleSheet.create({
   },
 
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
     color: '#2C2C2A',
   },
 
   seeAll: {
     color: '#534AB7',
-    fontWeight: '600',
+    fontWeight: '700',
   },
 
   transactionCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 22,
+    borderRadius: 24,
     padding: 18,
     marginBottom: 14,
 
@@ -369,6 +440,21 @@ const styles = StyleSheet.create({
     justifyContent:
       'space-between',
     alignItems: 'center',
+  },
+
+  leftRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  iconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#F2F0FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
   },
 
   transactionMerchant: {
@@ -390,14 +476,20 @@ const styles = StyleSheet.create({
 
   emptyCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 30,
+    borderRadius: 28,
+    paddingVertical: 50,
     alignItems: 'center',
   },
 
-  emptyText: {
-    marginTop: 12,
+  emptyTitle: {
+    marginTop: 14,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#2C2C2A',
+  },
+
+  emptySub: {
+    marginTop: 8,
     color: '#777',
-    fontSize: 16,
   },
 });

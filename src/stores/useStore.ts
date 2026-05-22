@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 
-export type Transaction = {
+import {
+  persist,
+  createJSONStorage,
+} from 'zustand/middleware';
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+export interface Transaction {
   id: string;
   amount: number;
   merchant: string;
@@ -8,9 +15,9 @@ export type Transaction = {
   timestamp: string;
   paymentMethod: string;
   category?: string;
-};
+}
 
-type Store = {
+interface StoreState {
   transactions: Transaction[];
 
   monthlyBudget: number;
@@ -25,48 +32,66 @@ type Store = {
   ) => void;
 
   setMonthlyBudget: (
-    amount: number
+    budget: number
   ) => void;
-};
+
+  loadData: () => Promise<void>;
+}
 
 export const useStore =
-  create<Store>((set) => ({
-    transactions: [],
+  create<StoreState>()(
+    persist(
+      (set) => ({
+        transactions: [],
 
-    monthlyBudget: 5000,
+        monthlyBudget: 0,
 
-    addTransaction: (
-      transaction
-    ) =>
-      set((state) => ({
-        transactions: [
-          transaction,
-          ...state.transactions,
-        ],
-      })),
+        addTransaction: (
+          transaction
+        ) =>
+          set((state) => ({
+            transactions: [
+              transaction,
+              ...state.transactions,
+            ],
+          })),
 
-    assignCategory: (
-      transactionId,
-      category
-    ) =>
-      set((state) => ({
-        transactions:
-          state.transactions.map(
-            (t) =>
-              t.id ===
-              transactionId
-                ? {
-                    ...t,
-                    category,
-                  }
-                : t
-          ),
-      })),
+        assignCategory: (
+          transactionId,
+          category
+        ) =>
+          set((state) => ({
+            transactions:
+              state.transactions.map(
+                (t) =>
+                  t.id ===
+                  transactionId
+                    ? {
+                        ...t,
+                        category,
+                      }
+                    : t
+              ),
+          })),
 
-    setMonthlyBudget: (
-      amount
-    ) =>
-      set({
-        monthlyBudget: amount,
+        setMonthlyBudget: (
+          budget
+        ) =>
+          set({
+            monthlyBudget: budget,
+          }),
+
+        loadData: async () => {
+          return;
+        },
       }),
-  }));
+
+      {
+        name: 'spendwise-storage',
+
+        storage: createJSONStorage(
+          () => AsyncStorage
+        ),
+      }
+    )
+  );

@@ -11,6 +11,7 @@ import {
 import * as Linking from 'expo-linking';
 
 import { useState } from 'react';
+
 import QRScannerScreen from './QRScannerScreen';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +19,37 @@ import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../stores/useStore';
 
 import CategoryModal from '../components/CategoryModal';
+
+const quickCategories = [
+  'Food',
+  'Shopping',
+  'Travel',
+  'Bills',
+  'Entertainment',
+  'Others',
+];
+
+const paymentMethods = [
+  {
+    id: 'UPI',
+    icon: 'phone-portrait',
+  },
+
+  {
+    id: 'Card',
+    icon: 'card',
+  },
+
+  {
+    id: 'QR',
+    icon: 'qr-code',
+  },
+
+  {
+    id: 'Cash',
+    icon: 'cash',
+  },
+];
 
 export default function PayScreen() {
   const addTransaction = useStore(
@@ -34,10 +66,20 @@ export default function PayScreen() {
   const [upiId, setUpiId] =
     useState('');
 
+  const [cardNumber, setCardNumber] =
+  useState('');
+
+  const [bankName, setBankName] =
+    useState('');
+
   const [note, setNote] =
     useState('');
 
   const [showScanner, setShowScanner] =
+    useState(false);
+
+  const [paymentSuccess,
+    setPaymentSuccess] =
     useState(false);
 
   const [
@@ -50,11 +92,30 @@ export default function PayScreen() {
     setCurrentTransactionId,
   ] = useState('');
 
+  
+  const [
+    selectedPaymentMethod,
+    setSelectedPaymentMethod,
+  ] = useState('UPI');
+
   const handlePayment = async () => {
-    if (!amount || !upiId) {
+    if (!amount) {
       Alert.alert(
-        'Missing Details',
-        'Please enter amount and UPI ID'
+        'Missing Amount',
+        'Please enter amount'
+      );
+
+      return;
+    }
+
+    if (
+      selectedPaymentMethod ===
+        'UPI' &&
+      !upiId
+    ) {
+      Alert.alert(
+        'Missing UPI ID',
+        'Please enter UPI ID'
       );
 
       return;
@@ -62,144 +123,212 @@ export default function PayScreen() {
 
     const transactionId = `txn-${Date.now()}`;
 
-    const upiUrl =
-      `upi://pay?` +
-      `pa=${encodeURIComponent(
-        upiId
-      )}` +
-      `&pn=${encodeURIComponent(
-        'SpendWise'
-      )}` +
-      `&am=${amount}` +
-      `&cu=INR`;
+    const transactionData = {
+      id: transactionId,
+
+      amount: Number(amount),
+
+      merchant:
+        upiId || 'Offline Payment',
+
+      note,
+
+      timestamp:
+        new Date().toISOString(),
+
+      paymentMethod:
+        selectedPaymentMethod,
+
+      
+    };
 
     try {
-      const supported =
-        await Linking.canOpenURL(
+      if (
+        selectedPaymentMethod ===
+        'UPI'
+      ) {
+        const upiUrl =
+          `upi://pay?` +
+          `pa=${encodeURIComponent(
+            upiId
+          )}` +
+          `&pn=${encodeURIComponent(
+            'SpendWise'
+          )}` +
+          `&am=${amount}` +
+          `&cu=INR`;
+
+        const supported =
+          await Linking.canOpenURL(
+            upiUrl
+          );
+
+        if (!supported) {
+          Alert.alert(
+            'Error',
+            'No UPI app found'
+          );
+
+          return;
+        }
+
+        await Linking.openURL(
           upiUrl
         );
 
-      if (!supported) {
-        Alert.alert(
-          'Error',
-          'No UPI app found'
+        setTimeout(() => {
+          addTransaction(
+            transactionData
+          );
+
+          setCurrentTransactionId(
+            transactionId
+          );
+
+          setPaymentSuccess(true);
+
+          setCategoryVisible(true);
+          Alert.alert(
+          'Payment Successful',
+          `₹ ${amount} payment added successfully`
         );
 
-        return;
+        setAmount('');
+        setUpiId('');
+        setNote('');
+        }, 2000);
       }
 
-      await Linking.openURL(upiUrl);
+      // addTransaction(
+      //   transactionData
+      // );
 
-      addTransaction({
-        id: transactionId,
-        amount: Number(amount),
-        merchant: upiId,
-        note,
-        timestamp:
-          new Date().toISOString(),
-        paymentMethod: 'UPI',
-      });
+      // setCurrentTransactionId(
+      //   transactionId
+      // );
 
-      setCurrentTransactionId(
-        transactionId
-      );
-
-      setCategoryVisible(true);
+      
+      
     } catch {
       Alert.alert(
         'Error',
-        'Unable to open UPI app'
+        'Unable to process payment'
       );
     }
   };
 
-  const handleCategorySelect = (
-    category: string
-  ) => {
-    assignCategory(
-      currentTransactionId,
-      category
-    );
-
-    setCategoryVisible(false);
-  };
   if (showScanner) {
-  return (
-    <QRScannerScreen
-      onClose={() =>
-        setShowScanner(false)
-      }
-      onScan={(
-        scannedUpiId,
-        merchant
-      ) => {
-        setUpiId(scannedUpiId);
+    return (
+      <QRScannerScreen
+        onClose={() =>
+          setShowScanner(false)
+        }
+        onScan={(
+          scannedUpiId,
+          merchant
+        ) => {
+          setUpiId(scannedUpiId);
 
-        setNote(merchant);
+          setNote(merchant);
 
-        setShowScanner(false);
-      }}
-    />
-  );
-}
+          setShowScanner(false);
+        }}
+      />
+    );
+  }
+
   return (
     <>
       <ScrollView
         style={styles.container}
+        contentContainerStyle={{
+          paddingBottom: 120,
+        }}
       >
         <Text style={styles.heading}>
           Pay
         </Text>
 
-        <View style={styles.methodsRow}>
+        {/* PAYMENT METHODS */}
+
+        <Text style={styles.sectionTitle}>
+          Payment Method
+        </Text>
+
+        <View style={styles.methodsGrid}>
+          {paymentMethods.map(
+            (method) => (
+              <TouchableOpacity
+                key={method.id}
+                style={[
+                  styles.methodCard,
+
+                  selectedPaymentMethod ===
+                    method.id &&
+                    styles.activeMethodCard,
+                ]}
+                onPress={() => {
+                  setSelectedPaymentMethod(
+                    method.id
+                  );
+
+                  if (method.id === 'QR') {
+                    setShowScanner(true);
+                  }
+                }}
+              >
+                <Ionicons
+                  name={
+                    method.icon as any
+                  }
+                  size={28}
+                  color={
+                    selectedPaymentMethod ===
+                    method.id
+                      ? '#FFFFFF'
+                      : '#534AB7'
+                  }
+                />
+
+                <Text
+                  style={[
+                    styles.methodText,
+
+                    selectedPaymentMethod ===
+                      method.id &&
+                      styles.activeMethodText,
+                  ]}
+                >
+                  {method.id}
+                </Text>
+              </TouchableOpacity>
+            )
+          )}
+        </View>
+
+        {/* QR
+
+        {selectedPaymentMethod ===
+          'QR' && (
           <TouchableOpacity
-            style={styles.methodCard}
-          >
-            <Ionicons
-              name="phone-portrait"
-              size={26}
-              color="#534AB7"
-            />
-
-            <Text
-              style={styles.methodText}
-            >
-              UPI ID
-            </Text>
-           </TouchableOpacity>
-
-          {/*<TouchableOpacity
-            style={styles.methodCard}
+            style={styles.qrButton}
+            onPress={() =>
+              setShowScanner(true)
+            }
           >
             <Ionicons
               name="qr-code"
-              size={26}
+              size={22}
               color="#534AB7"
             />
 
-            <Text
-              style={styles.methodText}
-            >
-              QR Scan
+            <Text style={styles.qrText}>
+              Scan QR Code
             </Text>
-          </TouchableOpacity> */}
-          <TouchableOpacity
-            style={styles.methodCard}
-            onPress={() =>
-                setShowScanner(true)
-            }
-            >
-            <Ionicons
-                name="qr-code"
-                size={26}
-                color="#534AB7"
-            />
+          </TouchableOpacity>
+        )} */}
 
-            <Text style={styles.methodText}>
-                QR Scan
-            </Text>
-           </TouchableOpacity>
-        </View>
+        {/* AMOUNT */}
 
         <Text style={styles.label}>
           Amount
@@ -213,16 +342,55 @@ export default function PayScreen() {
           style={styles.amountInput}
         />
 
-        <Text style={styles.label}>
-          UPI ID
-        </Text>
+        {/* UPI */}
 
-        <TextInput
-          placeholder="name@upi"
-          value={upiId}
-          onChangeText={setUpiId}
-          style={styles.input}
-        />
+        {(selectedPaymentMethod ===
+          'UPI' || selectedPaymentMethod === 'QR') && (
+          <>
+            <Text style={styles.label}>
+              UPI ID
+            </Text>
+
+            <TextInput
+              placeholder="name@upi"
+              value={upiId}
+              onChangeText={setUpiId}
+              style={styles.input}
+            />
+          </>
+        )}
+        {/* CARD DETAILS */}
+
+        {selectedPaymentMethod ===
+          'Card' && (
+          <>
+            <Text style={styles.label}>
+              Bank Name
+            </Text>
+
+            <TextInput
+              placeholder="HDFC, SBI..."
+              value={bankName}
+              onChangeText={setBankName}
+              style={styles.input}
+            />
+
+            <Text style={styles.label}>
+              Card Number
+            </Text>
+
+            <TextInput
+              placeholder="XXXX XXXX XXXX XXXX"
+              value={cardNumber}
+              onChangeText={
+                setCardNumber
+              }
+              keyboardType="numeric"
+              style={styles.input}
+            />
+          </>
+        )}
+        {/* NOTE */}
 
         <Text style={styles.label}>
           Note
@@ -235,10 +403,37 @@ export default function PayScreen() {
           style={styles.input}
         />
 
+        {paymentSuccess && (
+          <View style={styles.successCard}>
+            <Ionicons
+              name="checkmark-circle"
+              size={54}
+              color="#22C55E"
+            />
+
+            <Text style={styles.successTitle}>
+              Payment Successful
+            </Text>
+
+            <Text style={styles.successSub}>
+              Your payment was added
+              successfully
+            </Text>
+          </View>
+        )}
+
+        {/* PAY BUTTON */}
+
         <TouchableOpacity
           style={styles.payButton}
           onPress={handlePayment}
         >
+          <Ionicons
+            name="flash"
+            size={20}
+            color="#FFFFFF"
+          />
+
           <Text
             style={styles.payButtonText}
           >
@@ -252,9 +447,14 @@ export default function PayScreen() {
         onClose={() =>
           setCategoryVisible(false)
         }
-        onSelect={
-          handleCategorySelect
-        }
+        onSelect={(category) => {
+          assignCategory(
+            currentTransactionId,
+            category
+          );
+
+          setCategoryVisible(false);
+        }}
       />
     </>
   );
@@ -269,62 +469,111 @@ const styles = StyleSheet.create({
   },
 
   heading: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: '700',
-    marginBottom: 30,
+    marginBottom: 28,
+    color: '#2C2C2A',
   },
 
-  methodsRow: {
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 16,
+    color: '#2C2C2A',
+  },
+
+  methodsGrid: {
     flexDirection: 'row',
-    gap: 14,
-    marginBottom: 30,
+    flexWrap: 'wrap',
+    justifyContent:
+      'space-between',
+    marginBottom: 20,
   },
 
   methodCard: {
-    flex: 1,
-    backgroundColor: '#FFF',
+    width: '48%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
     paddingVertical: 24,
-    borderRadius: 18,
     alignItems: 'center',
+    marginBottom: 14,
+  },
+
+  activeMethodCard: {
+    backgroundColor: '#534AB7',
   },
 
   methodText: {
     marginTop: 10,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: '#2C2C2A',
   },
 
+  activeMethodText: {
+    color: '#FFFFFF',
+  },
+
+
   label: {
-    marginTop: 12,
-    marginBottom: 8,
-    fontWeight: '600',
+    marginBottom: 10,
+    marginTop: 8,
+    fontWeight: '700',
+    color: '#2C2C2A',
   },
 
   amountInput: {
-    backgroundColor: '#FFF',
-    borderRadius: 18,
-    padding: 20,
-    fontSize: 32,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 22,
+    fontSize: 34,
     fontWeight: '700',
+    marginBottom: 20,
+    color: '#2C2C2A',
   },
 
   input: {
-    backgroundColor: '#FFF',
-    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
     padding: 18,
-    marginBottom: 10,
+    marginBottom: 18,
+    fontSize: 16,
   },
 
   payButton: {
-    marginTop: 40,
     backgroundColor: '#534AB7',
-    paddingVertical: 18,
-    borderRadius: 18,
+    borderRadius: 24,
+    paddingVertical: 20,
+    justifyContent: 'center',
     alignItems: 'center',
+    flexDirection: 'row',
+    marginTop: 10,
   },
 
   payButtonText: {
-    color: '#FFF',
+    color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 18,
+    marginLeft: 10,
   },
+
+  successCard: {
+  backgroundColor: '#FFFFFF',
+  borderRadius: 26,
+  paddingVertical: 30,
+  alignItems: 'center',
+  marginBottom: 24,
+},
+
+successTitle: {
+  fontSize: 22,
+  fontWeight: '700',
+  color: '#2C2C2A',
+  marginTop: 14,
+},
+
+successSub: {
+  marginTop: 8,
+  color: '#777',
+},
+
 });
