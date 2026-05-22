@@ -1,31 +1,39 @@
 import { create } from 'zustand';
 
-export interface Transaction {
+export type Transaction = {
   id: string;
   amount: number;
   merchant: string;
-  category?: string;
   note?: string;
   timestamp: string;
   paymentMethod: string;
-}
+  category?: string;
+};
 
-interface AppState {
+type Store = {
   transactions: Transaction[];
+
+  monthlyBudget: number;
 
   addTransaction: (
     transaction: Transaction
   ) => void;
 
   assignCategory: (
-    id: string,
+    transactionId: string,
     category: string
   ) => void;
-}
 
-export const useStore = create<AppState>(
-  (set) => ({
+  setMonthlyBudget: (
+    amount: number
+  ) => void;
+};
+
+export const useStore =
+  create<Store>((set) => ({
     transactions: [],
+
+    monthlyBudget: 5000,
 
     addTransaction: (
       transaction
@@ -38,19 +46,27 @@ export const useStore = create<AppState>(
       })),
 
     assignCategory: (
-      id,
+      transactionId,
       category
     ) =>
       set((state) => ({
         transactions:
-          state.transactions.map((t) =>
-            t.id === id
-              ? {
-                  ...t,
-                  category,
-                }
-              : t
+          state.transactions.map(
+            (t) =>
+              t.id ===
+              transactionId
+                ? {
+                    ...t,
+                    category,
+                  }
+                : t
           ),
       })),
-  })
-);
+
+    setMonthlyBudget: (
+      amount
+    ) =>
+      set({
+        monthlyBudget: amount,
+      }),
+  }));

@@ -9,7 +9,9 @@ import {
 
 import {
   PieChart,
+  LineChart,
 } from 'react-native-chart-kit';
+
 import { useState } from 'react';
 
 import { useStore } from '../stores/useStore';
@@ -21,85 +23,112 @@ export default function InsightsScreen() {
   const transactions = useStore(
     (s) => s.transactions
   );
+
+  const monthlyBudget = useStore(
+    (s) => s.monthlyBudget
+  );
+
+  const [filter, setFilter] =
+    useState<
+      | 'daily'
+      | 'weekly'
+      | 'monthly'
+      | 'quarterly'
+    >('monthly');
+
+  const [
+    selectedCategory,
+    setSelectedCategory,
+  ] = useState('All');
+
   const now = new Date();
 
-const filteredTransactions =
-  transactions.filter((t) => {
-    const date = new Date(
-      t.timestamp
+  /* FILTER BY DATE */
+
+  const filteredTransactions =
+    transactions.filter((t) => {
+      const date = new Date(
+        t.timestamp
+      );
+
+      const diff =
+        now.getTime() -
+        date.getTime();
+
+      const days =
+        diff /
+        (1000 * 60 * 60 * 24);
+
+      switch (filter) {
+        case 'daily':
+          return days <= 1;
+
+        case 'weekly':
+          return days <= 7;
+
+        case 'monthly':
+          return days <= 30;
+
+        case 'quarterly':
+          return days <= 90;
+
+        default:
+          return true;
+      }
+    });
+
+  /* CATEGORY FILTERS */
+
+  const categories = [
+    'All',
+
+    ...new Set(
+      filteredTransactions.map(
+        (t) =>
+          t.category || 'Others'
+      )
+    ),
+  ];
+
+  const finalTransactions =
+    filteredTransactions.filter(
+      (t) => {
+        if (
+          selectedCategory ===
+          'All'
+        )
+          return true;
+
+        return (
+          (t.category ||
+            'Others') ===
+          selectedCategory
+        );
+      }
     );
 
-    const diff =
-      now.getTime() -
-      date.getTime();
+  /* TOTAL SPENT */
 
-    const days =
-      diff /
-      (1000 * 60 * 60 * 24);
+  const totalSpent =
+    finalTransactions.reduce(
+      (sum, t) =>
+        sum + t.amount,
+      0
+    );
 
-    switch (filter) {
-      case 'daily':
-        return days <= 1;
+  /* BUDGET */
 
-      case 'weekly':
-        return days <= 7;
+  const budgetUsed =
+    monthlyBudget > 0
+      ? (totalSpent /
+          monthlyBudget) *
+        100
+      : 0;
 
-      case 'monthly':
-        return days <= 30;
+  const remaining =
+    monthlyBudget - totalSpent;
 
-      case 'quarterly':
-        return days <= 90;
-
-      default:
-        return true;
-    }
-  });
-
-const categories = [
-  'All',
-  ...new Set(
-    filteredTransactions.map(
-      (t) =>
-        t.category || 'Others'
-    )
-  ),
-];
-
-const finalTransactions =
-  filteredTransactions.filter(
-    (t) => {
-      if (
-        selectedCategory ===
-        'All'
-      )
-        return true;
-
-      return (
-        (t.category || 'Others') ===
-        selectedCategory
-      );
-    }
-  );
-  const [filter, setFilter] =
-  useState<
-    'daily' |
-    'weekly' |
-    'monthly' |
-    'quarterly'
-  >('monthly');
-
-    const [selectedCategory,
-    setSelectedCategory] =
-    useState('All');
-
-
-
-
-
-  const totalSpent = finalTransactions.reduce(
-    (sum, t) => sum + t.amount,
-    0
-  );
+  /* CATEGORY TOTALS */
 
   const categoryTotals: Record<
     string,
@@ -111,27 +140,115 @@ const finalTransactions =
       t.category || 'Others';
 
     categoryTotals[category] =
-      (categoryTotals[category] || 0) +
-      t.amount;
+      (categoryTotals[
+        category
+      ] || 0) + t.amount;
   });
+
+  /* ANALYTICS */
+
+  const dailyAverage =
+    finalTransactions.length > 0
+      ? (
+          totalSpent /
+          finalTransactions.length
+        ).toFixed(2)
+      : 0;
+
+  const biggestExpense =
+    finalTransactions.reduce(
+      (max, t) =>
+        t.amount > max.amount
+          ? t
+          : max,
+      {
+        amount: 0,
+        merchant: '',
+      } as any
+    );
+
+  const merchantTotals: Record<
+    string,
+    number
+  > = {};
+
+  finalTransactions.forEach((t) => {
+    merchantTotals[
+      t.merchant
+    ] =
+      (merchantTotals[
+        t.merchant
+      ] || 0) + t.amount;
+  });
+
+  const topMerchant =
+    Object.entries(
+      merchantTotals
+    ).sort(
+      (a, b) => b[1] - a[1]
+    )[0];
+
+  const topCategory =
+    Object.entries(
+      categoryTotals
+    ).sort(
+      (a, b) => b[1] - a[1]
+    )[0];
+
+  /* LINE CHART */
+
+  const trendData =
+    finalTransactions
+      .slice(0, 7)
+      .reverse();
+
+  const lineChartData = {
+    labels: trendData.map(
+      (_, index) =>
+        `${index + 1}`
+    ),
+
+    datasets: [
+      {
+        data:
+          trendData.length > 0
+            ? trendData.map(
+                (t) =>
+                  t.amount
+              )
+            : [0],
+      },
+    ],
+  };
+
+  /* PIE CHART */
 
   const pieData = Object.entries(
     categoryTotals
-  ).map(([category, amount], index) => ({
-    name: category,
-    amount,
-    color: [
-      '#534AB7',
-      '#7B6EF6',
-      '#A393FF',
-      '#D1C7FF',
-      '#8B80F9',
-      '#C6BAFF',
-    ][index % 6],
+  ).map(
+    (
+      [category, amount],
+      index
+    ) => ({
+      name: category,
 
-    legendFontColor: '#333',
-    legendFontSize: 14,
-  }));
+      population: amount,
+
+      color: [
+        '#534AB7',
+        '#7B6EF6',
+        '#A393FF',
+        '#D1C7FF',
+        '#8B80F9',
+        '#C6BAFF',
+      ][index % 6],
+
+      legendFontColor:
+        '#333',
+
+      legendFontSize: 14,
+    })
+  );
 
   return (
     <ScrollView
@@ -143,77 +260,87 @@ const finalTransactions =
       <Text style={styles.heading}>
         Insights
       </Text>
-      
+
+      {/* FILTERS */}
+
       <View style={styles.filterRow}>
-  {[
-    'daily',
-    'weekly',
-    'monthly',
-    'quarterly',
-  ].map((item) => (
-    <TouchableOpacity
-      key={item}
-      style={[
-        styles.filterButton,
+        {[
+          'daily',
+          'weekly',
+          'monthly',
+          'quarterly',
+        ].map((item) => (
+          <TouchableOpacity
+            key={item}
+            style={[
+              styles.filterButton,
 
-        filter === item &&
-          styles.activeFilter,
-      ]}
-      onPress={() =>
-        setFilter(item as any)
-      }
-    >
-      <Text
-        style={[
-          styles.filterText,
+              filter === item &&
+                styles.activeFilter,
+            ]}
+            onPress={() =>
+              setFilter(
+                item as any
+              )
+            }
+          >
+            <Text
+              style={[
+                styles.filterText,
 
-          filter === item &&
-            styles.activeFilterText,
-        ]}
+                filter === item &&
+                  styles.activeFilterText,
+              ]}
+            >
+              {item}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* CATEGORY FILTER */}
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={
+          false
+        }
+        style={{
+          marginBottom: 20,
+        }}
       >
-        {item}
-      </Text>
-    </TouchableOpacity>
-  ))}
-</View>
+        {categories.map(
+          (category) => (
+            <TouchableOpacity
+              key={category}
+              style={[
+                styles.filterButton,
 
-<ScrollView
-  horizontal
-  showsHorizontalScrollIndicator={
-    false
-  }
-  style={{ marginBottom: 20 }}
->
-  {categories.map((category) => (
-    <TouchableOpacity
-      key={category}
-      style={[
-        styles.filterButton,
+                selectedCategory ===
+                  category &&
+                  styles.activeFilter,
+              ]}
+              onPress={() =>
+                setSelectedCategory(
+                  category
+                )
+              }
+            >
+              <Text
+                style={[
+                  styles.filterText,
 
-        selectedCategory ===
-          category &&
-          styles.activeFilter,
-      ]}
-      onPress={() =>
-        setSelectedCategory(
-          category
-        )
-      }
-    >
-      <Text
-        style={[
-          styles.filterText,
-
-          selectedCategory ===
-            category &&
-            styles.activeFilterText,
-        ]}
-      >
-        {category}
-      </Text>
-    </TouchableOpacity>
-  ))}
-</ScrollView>
+                  selectedCategory ===
+                    category &&
+                    styles.activeFilterText,
+                ]}
+              >
+                {category}
+              </Text>
+            </TouchableOpacity>
+          )
+        )}
+      </ScrollView>
 
       {/* TOTAL CARD */}
 
@@ -222,27 +349,237 @@ const finalTransactions =
           Total Spending
         </Text>
 
-        <Text style={styles.totalAmount}>
+        <Text
+          style={styles.totalAmount}
+        >
           ₹ {totalSpent}
         </Text>
       </View>
+
+      {/* BUDGET CARD */}
+
+      <View style={styles.budgetCard}>
+        <View
+          style={styles.budgetRow}
+        >
+          <Text
+            style={styles.budgetTitle}
+          >
+            Monthly Budget
+          </Text>
+
+          <Text
+            style={styles.budgetAmount}
+          >
+            ₹ {monthlyBudget}
+          </Text>
+        </View>
+
+        <View
+          style={styles.progressBg}
+        >
+          <View
+            style={[
+              styles.progressFill,
+              {
+                width: `${Math.min(
+                  budgetUsed,
+                  100
+                )}%`,
+              },
+            ]}
+          />
+        </View>
+
+        <View
+          style={styles.budgetRow}
+        >
+          <Text
+            style={styles.remaining}
+          >
+            Remaining:
+            ₹ {remaining}
+          </Text>
+
+          <Text
+            style={styles.remaining}
+          >
+            {budgetUsed.toFixed(
+              0
+            )}
+            %
+          </Text>
+        </View>
+      </View>
+
+      {/* ANALYTICS */}
+
+      <View
+        style={styles.analyticsGrid}
+      >
+        <View
+          style={styles.analyticsCard}
+        >
+          <Text
+            style={
+              styles.analyticsLabel
+            }
+          >
+            Daily Avg
+          </Text>
+
+          <Text
+            style={
+              styles.analyticsValue
+            }
+          >
+            ₹ {dailyAverage}
+          </Text>
+        </View>
+
+        <View
+          style={styles.analyticsCard}
+        >
+          <Text
+            style={
+              styles.analyticsLabel
+            }
+          >
+            Biggest Expense
+          </Text>
+
+          <Text
+            style={
+              styles.analyticsValue
+            }
+          >
+            ₹{' '}
+            {
+              biggestExpense.amount
+            }
+          </Text>
+
+          <Text
+            style={
+              styles.analyticsSub
+            }
+          >
+            {
+              biggestExpense.merchant
+            }
+          </Text>
+        </View>
+
+        <View
+          style={styles.analyticsCard}
+        >
+          <Text
+            style={
+              styles.analyticsLabel
+            }
+          >
+            Top Category
+          </Text>
+
+          <Text
+            style={
+              styles.analyticsValue
+            }
+          >
+            {topCategory?.[0] ||
+              '-'}
+          </Text>
+        </View>
+
+        <View
+          style={styles.analyticsCard}
+        >
+          <Text
+            style={
+              styles.analyticsLabel
+            }
+          >
+            Top Merchant
+          </Text>
+
+          <Text
+            style={
+              styles.analyticsValue
+            }
+          >
+            {topMerchant?.[0] ||
+              '-'}
+          </Text>
+        </View>
+      </View>
+
+      {/* LINE CHART */}
+
+      {finalTransactions.length >
+        0 && (
+        <>
+          <Text
+            style={
+              styles.sectionTitle
+            }
+          >
+            Spending Trend
+          </Text>
+
+          <LineChart
+            data={lineChartData}
+            width={
+              screenWidth - 40
+            }
+            height={220}
+            chartConfig={{
+              backgroundGradientFrom:
+                '#FFFFFF',
+
+              backgroundGradientTo:
+                '#FFFFFF',
+
+              decimalPlaces: 0,
+
+              color: (
+                opacity = 1
+              ) =>
+                `rgba(83,74,183,${opacity})`,
+
+              labelColor:
+                () => '#555',
+            }}
+            bezier
+            style={{
+              borderRadius: 20,
+            }}
+          />
+        </>
+      )}
 
       {/* PIE CHART */}
 
       {pieData.length > 0 && (
         <>
-          <Text style={styles.sectionTitle}>
+          <Text
+            style={
+              styles.sectionTitle
+            }
+          >
             Category Breakdown
           </Text>
 
           <PieChart
             data={pieData}
-            width={screenWidth - 40}
+            width={
+              screenWidth - 40
+            }
             height={220}
             chartConfig={{
-              color: () => '#534AB7',
+              color: () =>
+                '#534AB7',
             }}
-            accessor="amount"
+            accessor="population"
             backgroundColor="transparent"
             paddingLeft="16"
             absolute
@@ -252,24 +589,34 @@ const finalTransactions =
 
       {/* CATEGORY LIST */}
 
-      <Text style={styles.sectionTitle}>
+      <Text
+        style={styles.sectionTitle}
+      >
         Spending by Category
       </Text>
 
-      {Object.entries(categoryTotals).map(
+      {Object.entries(
+        categoryTotals
+      ).map(
         ([category, amount]) => (
           <View
             key={category}
-            style={styles.categoryCard}
+            style={
+              styles.categoryCard
+            }
           >
             <Text
-              style={styles.categoryName}
+              style={
+                styles.categoryName
+              }
             >
               {category}
             </Text>
 
             <Text
-              style={styles.categoryAmount}
+              style={
+                styles.categoryAmount
+              }
             >
               ₹ {amount}
             </Text>
@@ -295,11 +642,40 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
+  filterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 20,
+  },
+
+  filterButton: {
+    backgroundColor: '#EEE',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 16,
+    marginRight: 10,
+  },
+
+  activeFilter: {
+    backgroundColor: '#534AB7',
+  },
+
+  filterText: {
+    fontWeight: '600',
+    textTransform:
+      'capitalize',
+  },
+
+  activeFilterText: {
+    color: '#FFF',
+  },
+
   totalCard: {
     backgroundColor: '#534AB7',
     borderRadius: 24,
     padding: 24,
-    marginBottom: 28,
+    marginBottom: 20,
   },
 
   totalLabel: {
@@ -312,6 +688,82 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: '700',
     marginTop: 8,
+  },
+
+  budgetCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 24,
+  },
+
+  budgetRow: {
+    flexDirection: 'row',
+    justifyContent:
+      'space-between',
+    marginBottom: 12,
+  },
+
+  budgetTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  budgetAmount: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#534AB7',
+  },
+
+  progressBg: {
+    height: 14,
+    backgroundColor: '#EEE',
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#534AB7',
+  },
+
+  remaining: {
+    color: '#666',
+    fontWeight: '600',
+  },
+
+  analyticsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent:
+      'space-between',
+    marginBottom: 20,
+  },
+
+  analyticsCard: {
+    width: '48%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 14,
+  },
+
+  analyticsLabel: {
+    color: '#777',
+    fontSize: 13,
+  },
+
+  analyticsValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#2C2C2A',
+    marginTop: 8,
+  },
+
+  analyticsSub: {
+    marginTop: 4,
+    color: '#777',
   },
 
   sectionTitle: {
@@ -327,9 +779,9 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 18,
     marginBottom: 14,
-
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent:
+      'space-between',
     alignItems: 'center',
   },
 
@@ -344,32 +796,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#534AB7',
   },
-
-  filterRow: {
-  flexDirection: 'row',
-  flexWrap: 'wrap',
-  gap: 10,
-  marginBottom: 20,
-},
-
-filterButton: {
-  backgroundColor: '#EEE',
-  paddingHorizontal: 16,
-  paddingVertical: 10,
-  borderRadius: 16,
-  marginRight: 10,
-},
-
-activeFilter: {
-  backgroundColor: '#534AB7',
-},
-
-filterText: {
-  fontWeight: '600',
-  textTransform: 'capitalize',
-},
-
-activeFilterText: {
-  color: '#FFF',
-},
 });
